@@ -1,8 +1,9 @@
 import os
 from openai import OpenAI
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from pinecone import ServerlessSpec
 
 # Load .env variables
 load_dotenv()

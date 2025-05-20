@@ -1,56 +1,70 @@
 import os
+from dotenv import load_dotenv
 from openai import OpenAI
 from pinecone import Pinecone
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Initialize OpenAI and Pinecone clients
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+index = pc.Index("hubspot-llms")
 
-# Connect to Pinecone index
-index_name = "hubspot-llms"
-index = pc.Index(index_name)
+def get_embedding(text: str) -> list:
+    """Generate OpenAI embedding for a given text."""
+    response = client.embeddings.create(
+        input=text,
+        model="text-embedding-3-small"
+    )
+    return response.data[0].embedding
 
-# User input
-query = input("Ask a question about HubSpot accounts: ")
+def search_pinecone(vector: list, top_k: int = 5) -> list:
+    """Query Pinecone with the embedding vector."""
+    results = index.query(
+        vector=vector,
+        top_k=top_k,
+        include_metadata=True
+    )
+    return results.get("matches", [])
 
-# Step 1: Embed the user query
-embedding = client.embeddings.create(
-    input=query,
-    model="text-embedding-3-small"
-).data[0].embedding
-
-# Step 2: Search Pinecone
-search_results = index.query(
-    vector=embedding,
-    top_k=5,
-    include_metadata=True
-)
-
-# Step 3: Extract and display top chunks
-matches = search_results.get("matches", [])
-if not matches:
-    print("No relevant chunks found.")
-    exit()
-
-print("\n🔍 Top Matches:")
-for i, match in enumerate(matches):
-    print(f"\nChunk {i+1}:\n{match['metadata']['text']}")
-
-# Step 4 (Optional): Use GPT to generate an answer
-use_gpt = input("\n🧠 Use GPT-4 to summarize answer from chunks? (y/n): ").lower()
-if use_gpt == "y":
-    context = "\n\n".join([m["metadata"]["text"] for m in matches])
-    prompt = f"Use the following context to answer the question:\n\n{context}\n\nQ: {query}\nA:"
+def generate_answer(context: str, question: str) -> str:
+    """Generate GPT-4 answer based on the context and question."""
+    prompt = f"Use the following HubSpot documentation to answer the question.\n\n{context}\n\nQ: {question}\nA:"
     
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that answers based only on provided HubSpot documentation."},
+            {"role": "system", "content": "You are a helpful assistant that only answers based on the HubSpot's Developer documentation."},
             {"role": "user", "content": prompt}
         ]
     )
-    
-    answer = response.choices[0].message.content
-    print(f"\n✅ Answer:\n{answer}")
+    return response.choices[0].message.content.strip()
+
+def main():
+    # Get user question
+    question = input("Ask a question about HubSpot development: ").strip()
+
+    # Step 1: Get embedding
+    embedding = get_embedding(question)
+
+    # Step 2: Search in Pinecone
+    matches = search_pinecone(embedding)
+    if not matches:
+        print("⚠️ No relevant chunks found.")
+        return
+
+    # Step 3: Show top matches
+    print("\n🔍 Top Chunks:")
+    for i, match in enumerate(matches, start=1):
+        print(f"\nChunk {i}:\n{match['metadata']['text']}")
+
+    # Step 4: Optionally use GPT to summarize
+    use_gpt = input("\n🧠 Use GPT-4 to generate answer from these chunks? (y/n): ").lower()
+    if use_gpt == "y":
+        context = "\n\n".join([m["metadata"]["text"] for m in matches])
+        answer = generate_answer(context, question)
+        print(f"\n✅ Answer:\n{answer}")
+
+if __name__ == "__main__":
+    main()

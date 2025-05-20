@@ -1,7 +1,8 @@
 fastapi
 uvicorn
 openai
-pinecone-client
+pinecone
 python-dotenv
 streamlit
 requests
+langchain
