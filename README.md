@@ -129,7 +129,7 @@ streamlit run streamlit_app.py
 
 You'll get a local UI where you can enter questions and see answers and source snippets like in the example below:
 
-![Streamlit UI Example](HubSpotRagAssistantUIDemo.gif)
+![Streamlit UI Example](https://github.com/hseligson1/hubspot-rag-assistant-sample/blob/9c613f818b4d9ae1027b7bc7ee07aee69deb6b14/HubSpotRAGAssistantUIDemo.gif)
 ---
 
 ## 🧐 Technologies Used
