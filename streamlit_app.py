@@ -1,28 +1,58 @@
 import streamlit as st
 import requests
+import json
 
-st.set_page_config(page_title="HubSpot Assistant", page_icon="🤖")
+st.set_page_config(
+    page_title="HubSpot RAG Assistant",
+    page_icon="🤖",
+    layout="wide"
+)
 
-st.title("🤖 HubSpot Docs Assistant")
-st.markdown("Ask any question based on the [HubSpot developer docs](https://developers.hubspot.com/docs/llms-full.txt)")
+st.title("🤖 HubSpot RAG Assistant")
+st.markdown("Ask questions about HubSpot development and get answers based on the official documentation.")
 
-# Input from user
-user_question = st.text_input("Enter your question here:")
+# Initialize session state for chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if st.button("Ask") and user_question:
-    with st.spinner("Thinking..."):
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Chat input
+if prompt := st.chat_input("Ask a question about HubSpot development..."):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Get response from API
+    try:
         response = requests.post(
-            "http://localhost:8000/ask",  # Backend must be running
-            json={"question": user_question}
+            "http://localhost:8000/ask",
+            json={"question": prompt}
         )
-        if response.status_code == 200:
-            data = response.json()
-            st.markdown("### ✅ Answer")
-            st.write(data["answer"])
+        response.raise_for_status()
+        result = response.json()
+
+        # Display assistant response
+        with st.chat_message("assistant"):
+            st.markdown(result["answer"])
             
-            st.markdown("---")
-            st.markdown("### 📚 Sources")
-            for i, src in enumerate(data["sources"], 1):
-                st.markdown(f"**{i}.** {src}")
-        else:
-            st.error("❌ Error: Could not get a response from the backend.")
+            # Display sources in an expander
+            with st.expander("View Sources"):
+                for i, source in enumerate(result["sources"], 1):
+                    st.markdown(f"**Source {i}:**")
+                    st.markdown(source)
+                    st.markdown("---")
+
+        # Add assistant response to chat history
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": result["answer"]
+        })
+
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+        st.info("Make sure the FastAPI server is running at http://localhost:8000")
